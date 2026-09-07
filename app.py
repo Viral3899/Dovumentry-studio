@@ -11,7 +11,7 @@ import wave
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file, session
+from flask import Flask, jsonify, render_template, request, send_file, send_from_directory, session
 from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
@@ -27,7 +27,15 @@ except Exception:  # pragma: no cover
     genai = None
     types = None
 
+try:
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+except Exception:  # pragma: no cover
+    id_token = None
+    google_requests = None
+
 BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 RUNTIME_DIR = (Path(os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp") / "documentary-studio") if os.getenv("VERCEL") == "1" else BASE_DIR
 RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 GENERATED_DIR = RUNTIME_DIR / "generated_sessions"
@@ -41,6 +49,7 @@ NARRATION_VOLUME = 1.5
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$FeBqzBye8K9e0x1l$3584c102b33a948cc4c124fd615576388e9a3fb41dd414e81e2377ea82eb062a2fa57962867ceed0495f3e07aaba92f32e723a7625462008dad627e29e63922f"
+DEFAULT_USER_USERNAME = "user"
 VISUAL_STYLES = {
     "photorealistic": "Photorealistic cinematic documentary, premium film quality, realistic lighting, realistic people, accurate environment, natural colors, cinematic depth of field",
     "cartoon": "Stylized 2D cartoon animation, expressive clean shapes, rich colors, cinematic composition, appealing character design, storybook realism",
@@ -77,7 +86,15 @@ app.config.update(
 
 
 def authentication_configured():
-    return bool(os.getenv("ADMIN_PASSWORD") or os.getenv("ADMIN_PASSWORD_HASH")) or os.getenv("VERCEL") == "1"
+    return bool(
+        os.getenv("ADMIN_PASSWORD") or os.getenv("ADMIN_PASSWORD_HASH")
+        or os.getenv("USER_PASSWORD") or os.getenv("USER_PASSWORD_HASH")
+        or google_auth_configured()
+    ) or os.getenv("VERCEL") == "1"
+
+
+def google_auth_configured():
+    return bool(os.getenv("GOOGLE_CLIENT_ID") and (os.getenv("GOOGLE_ADMIN_EMAIL") or os.getenv("GOOGLE_USER_EMAIL")))
 
 
 def admin_password_is_valid(password):
@@ -90,13 +107,30 @@ def admin_password_is_valid(password):
     return bool(configured_password) and password == configured_password
 
 
+def user_password_is_valid(password):
+    password_hash = os.getenv("USER_PASSWORD_HASH")
+    if password_hash:
+        return check_password_hash(password_hash, password)
+    configured_password = os.getenv("USER_PASSWORD")
+    return bool(configured_password) and password == configured_password
+
+
+def set_authenticated_user(username, role, email=None):
+    session.clear()
+    session["authenticated"] = True
+    session["username"] = username
+    session["role"] = role
+    if email:
+        session["email"] = email
+
+
 @app.before_request
 def require_admin_authentication():
-    if not request.path.startswith("/api/") or request.path in {"/api/auth/login", "/api/auth/me"}:
+    if not request.path.startswith("/api/") or request.path in {"/api/auth/login", "/api/auth/google", "/api/auth/me"}:
         return None
     if not authentication_configured():
         return None
-    if session.get("admin_authenticated"):
+    if session.get("authenticated"):
         return None
     return jsonify({"success": False, "message": "Admin authentication is required.", "authenticated": False}), 401
 
@@ -106,25 +140,59 @@ def admin_login():
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
-    configured_username = os.getenv("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME)
+    requested_role = (payload.get("role") or "admin").strip().lower()
+    if requested_role not in {"admin", "user"}:
+        return jsonify({"success": False, "message": "Choose a valid account type."}), 400
     if not authentication_configured():
-        return jsonify({"success": False, "message": "Admin credentials are not configured."}), 503
-    if username != configured_username or not admin_password_is_valid(password):
-        return jsonify({"success": False, "message": "Invalid admin username or password."}), 401
-    session.clear()
-    session["admin_authenticated"] = True
-    session["admin_username"] = configured_username
-    return jsonify({"success": True, "username": configured_username})
+        return jsonify({"success": False, "message": "Authentication is not configured."}), 503
+    if requested_role == "admin":
+        configured_username = os.getenv("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME)
+        valid = username == configured_username and admin_password_is_valid(password)
+    else:
+        configured_username = os.getenv("USER_USERNAME", DEFAULT_USER_USERNAME)
+        valid = username == configured_username and user_password_is_valid(password)
+    if not valid:
+        return jsonify({"success": False, "message": f"Invalid {requested_role} credentials."}), 401
+    set_authenticated_user(configured_username, requested_role)
+    return jsonify({"success": True, "username": configured_username, "role": requested_role})
+
+
+@app.route("/api/auth/google", methods=["POST"])
+def google_login():
+    credential = (request.get_json(silent=True) or {}).get("credential")
+    if not credential or not google_auth_configured() or id_token is None:
+        return jsonify({"success": False, "message": "Google sign-in is not configured."}), 503
+    try:
+        claims = id_token.verify_oauth2_token(credential, google_requests.Request(), os.getenv("GOOGLE_CLIENT_ID"))
+    except Exception:
+        return jsonify({"success": False, "message": "Google sign-in could not be verified."}), 401
+    email = (claims.get("email") or "").strip().lower()
+    if not claims.get("email_verified"):
+        return jsonify({"success": False, "message": "Use a verified Google email address."}), 401
+    admin_email = os.getenv("GOOGLE_ADMIN_EMAIL", "").strip().lower()
+    user_email = os.getenv("GOOGLE_USER_EMAIL", "").strip().lower()
+    if email == admin_email:
+        role = "admin"
+    elif email == user_email:
+        role = "user"
+    else:
+        return jsonify({"success": False, "message": "This Google account is not allowed."}), 403
+    set_authenticated_user(claims.get("name") or email, role, email)
+    return jsonify({"success": True, "username": claims.get("name") or email, "email": email, "role": role})
 
 
 @app.route("/api/auth/me")
 def admin_me():
-    authenticated = bool(session.get("admin_authenticated"))
+    authenticated = bool(session.get("authenticated"))
     return jsonify({
         "success": True,
         "authenticated": authenticated or not authentication_configured(),
-        "username": session.get("admin_username") if authenticated else None,
+        "username": session.get("username") if authenticated else (os.getenv("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME) if not authentication_configured() else None),
+        "role": session.get("role") if authenticated else ("admin" if not authentication_configured() else None),
+        "email": session.get("email") if authenticated else None,
         "auth_configured": authentication_configured(),
+        "google_configured": google_auth_configured(),
+        "google_client_id": os.getenv("GOOGLE_CLIENT_ID") if google_auth_configured() else None,
     })
 
 
@@ -557,7 +625,21 @@ def image_index_from_filename(filename: str):
 
 @app.route("/")
 def index():
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return send_from_directory(FRONTEND_DIST, "index.html")
     return "Flask Documentary Studio"
+
+
+@app.route("/<path:path>")
+def frontend_files(path):
+    requested_path = FRONTEND_DIST / path
+    if requested_path.is_file():
+        return send_from_directory(FRONTEND_DIST, path)
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists() and not path.startswith("api/"):
+        return send_from_directory(FRONTEND_DIST, "index.html")
+    return jsonify({"success": False, "message": "Not found."}), 404
 
 
 @app.route("/api/create-session", methods=["POST"])

@@ -29,11 +29,19 @@ function hasDevanagari(text) {
   return /[\u0900-\u097F]/.test(text || '');
 }
 
-function LoginScreen({ onLogin }) {
+function getInitialTheme() {
+  const savedTheme = localStorage.getItem('documentary-theme');
+  if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
+  return 'dark';
+}
+
+function LoginScreen({ onLogin, googleConfigured }) {
+  const [role, setRole] = useState('admin');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [authView, setAuthView] = useState('home');
 
   const submit = async (event) => {
     event.preventDefault();
@@ -43,9 +51,9 @@ function LoginScreen({ onLogin }) {
       const result = await requestJson('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, role }),
       });
-      onLogin(result.username);
+      onLogin(result.username, result.role);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,24 +61,65 @@ function LoginScreen({ onLogin }) {
     }
   };
 
+  const handleGoogleCredential = async (response) => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await requestJson('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: response.credential }) });
+      onLogin(result.username, result.role);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!googleConfigured || authView === 'home') return undefined;
+    let attempts = 0;
+    const renderGoogleButton = () => {
+      if (!window.google?.accounts?.id) {
+        if (attempts++ < 20) window.setTimeout(renderGoogleButton, 250);
+        return;
+      }
+      window.google.accounts.id.initialize({ client_id: googleConfigured, callback: handleGoogleCredential });
+      window.google.accounts.id.renderButton(document.getElementById('google-sign-in'), { theme: 'outline', size: 'large', width: 360, text: 'signin_with' });
+    };
+    renderGoogleButton();
+    return undefined;
+  }, [googleConfigured, authView]);
+
+  if (authView === 'home') return <main className="auth-shell"><section className="panel auth-panel auth-home-panel">
+    <div className="brand-mark"><Clapperboard size={20} /> DOCUMENTARY STUDIO</div>
+    <div className="panel-kicker">A WORKSPACE FOR STORIES</div>
+    <h1>Make the story<br /><em>watchable.</em></h1>
+    <p className="auth-copy">Create research-driven scripts, narration, visuals, and finished documentaries in one focused studio.</p>
+    <div className="auth-home-actions"><ActionButton onClick={() => setAuthView('login')}>Log in <ArrowRight size={17} /></ActionButton><ActionButton secondary onClick={() => setAuthView('signup')}>Sign up <Sparkles size={17} /></ActionButton></div>
+  </section></main>;
+
   return <main className="auth-shell"><section className="panel auth-panel">
     <div className="brand-mark"><Clapperboard size={20} /> DOCUMENTARY STUDIO</div>
-    <div className="panel-kicker">ADMIN ACCESS</div>
-    <h1>Enter the<br /><em>story room.</em></h1>
-    <p className="auth-copy">Sign in to create, edit, and render documentaries.</p>
+    <div className="panel-kicker">{authView === 'login' ? 'STUDIO ACCESS' : 'CREATE YOUR ACCOUNT'}</div>
+    <h1>{authView === 'login' ? <>Enter the<br /><em>story room.</em></> : <>Join the<br /><em>story room.</em></>}</h1>
+    <p className="auth-copy">{authView === 'login' ? 'Sign in to create, edit, and render documentaries.' : 'Use your approved Google account to join this documentary studio.'}</p>
     {error && <div className="error-banner">{error}</div>}
-    <form onSubmit={submit}>
-      <label>Admin username<input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></label>
-      <label>Admin password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
-      <ActionButton type="submit" busy={busy} disabled={!username || !password}>Unlock studio <ArrowRight size={17} /></ActionButton>
-    </form>
+    {authView === 'login' ? <form onSubmit={submit}>
+      <div className="role-switch" role="group" aria-label="Account type"><button type="button" className={role === 'admin' ? 'selected' : ''} onClick={() => setRole('admin')}>Admin</button><button type="button" className={role === 'user' ? 'selected' : ''} onClick={() => setRole('user')}>User</button></div>
+      <label>{role === 'admin' ? 'Admin' : 'User'} username<input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></label>
+      <label>{role === 'admin' ? 'Admin' : 'User'} password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
+      <ActionButton type="submit" busy={busy} disabled={!username || !password}>Enter studio <ArrowRight size={17} /></ActionButton>
+    </form> : <div className="signup-note"><strong>One studio, approved accounts.</strong><span>Signup is available for the Google email configured by the studio administrator.</span></div>}
+    {googleConfigured && <><div className="auth-divider"><span>{authView === 'login' ? 'or continue with Google' : 'continue with Google'}</span></div><div id="google-sign-in" className="google-sign-in" /></>}
+    <button className="auth-back-button" type="button" onClick={() => setAuthView(authView === 'login' ? 'home' : 'login')}>{authView === 'login' ? 'Back to home' : 'Already have an account? Log in'}</button>
   </section></main>;
 }
 
 function App() {
   const [authenticated, setAuthenticated] = useState(null);
   const [adminUsername, setAdminUsername] = useState('');
-  const [theme, setTheme] = useState(() => localStorage.getItem('documentary-theme') || 'light');
+  const [userRole, setUserRole] = useState('admin');
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [theme, setTheme] = useState(getInitialTheme);
   const [topic, setTopic] = useState('');
   const [genre, setGenre] = useState('history');
   const [visualStyle, setVisualStyle] = useState('photorealistic');
@@ -99,12 +148,12 @@ function App() {
   const [bgmVolume, setBgmVolume] = useState(0.2);
 
   useEffect(() => {
-    requestJson('/api/auth/me')
-      .then((result) => {
-        setAuthenticated(result.authenticated);
-        setAdminUsername(result.username || 'admin');
-      })
-      .catch(() => setAuthenticated(false));
+    requestJson('/api/auth/me').then((result) => {
+      setAuthenticated(result.authenticated);
+      setAdminUsername(result.username || 'admin');
+      setUserRole(result.role || 'admin');
+      setGoogleClientId(result.google_configured ? (result.google_client_id || '') : '');
+    }).catch(() => setAuthenticated(false));
   }, []);
 
   useEffect(() => {
@@ -112,17 +161,15 @@ function App() {
     localStorage.setItem('documentary-theme', theme);
   }, [theme]);
 
-  if (authenticated === null) return <main className="auth-shell"><div className="auth-loading">Checking admin access…</div></main>;
-  if (!authenticated) return <LoginScreen onLogin={(username) => { setAdminUsername(username); setAuthenticated(true); }} />;
+  if (authenticated === null) return <main className="auth-shell"><div className="auth-loading">Checking studio access...</div></main>;
+  if (!authenticated) return <LoginScreen googleConfigured={googleClientId} onLogin={(username, role) => { setAdminUsername(username); setUserRole(role); setAuthenticated(true); }} />;
 
   const logout = async () => {
     await requestJson('/api/auth/logout', { method: 'POST' });
     setAuthenticated(false);
     setAdminUsername('');
   };
-
   const toggleTheme = () => setTheme((current) => current === 'light' ? 'dark' : 'light');
-
   const run = async (key, fn) => {
     setBusy(key);
     setError('');
@@ -231,7 +278,7 @@ function App() {
             {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             <span>{theme === 'light' ? 'Dark' : 'Light'}</span>
           </button>
-          <div className="header-note">{adminUsername} <button className="logout-button" onClick={logout}><LogOut size={13} /> Sign out</button><span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
+          <div className="header-note">{adminUsername} · {userRole} <button className="logout-button" onClick={logout}><LogOut size={13} /> Sign out</button><span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
         </div>
       </header>
 

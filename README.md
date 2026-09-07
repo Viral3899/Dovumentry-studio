@@ -60,13 +60,25 @@ $env:GROQ_API_KEY = "your-groq-key"
 $env:GEMINI_API_KEY = "your-gemini-key"
 ```
 
-Configure admin authentication with these environment variables. Authentication is enabled when either `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` is set. On Vercel, if neither is configured, the temporary default login is `admin` / `admin123`; replace it immediately:
+Configure one admin account and one user account with these environment variables. Authentication is enabled when either account or Google authentication is configured. Passwords can be plain values for local development or Werkzeug hashes for deployment:
 
 ```bash
 ADMIN_USERNAME="admin"
 ADMIN_PASSWORD_HASH="your werkzeug password hash"
+USER_USERNAME="user"
+USER_PASSWORD_HASH="your werkzeug password hash"
 FLASK_SECRET_KEY="a long random secret"
 ```
+
+Google sign-in uses Google Identity Services. In Google Cloud Console, create a Web OAuth client, add the local/deployed origins, and allow exactly one Google email for each role:
+
+```bash
+GOOGLE_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+GOOGLE_ADMIN_EMAIL="admin@example.com"
+GOOGLE_USER_EMAIL="user@example.com"
+```
+
+The server verifies the Google ID token and rejects unlisted or unverified email addresses. `GOOGLE_CLIENT_ID` is public browser configuration; keep `FLASK_SECRET_KEY` and password hashes private.
 
 Generate a password hash with:
 
@@ -78,13 +90,15 @@ For Vercel, add `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `FLASK_SECRET_KEY`, `GR
 
 ## Run
 
-Start both servers from the repository root:
+Build the frontend and run the API plus frontend on one port:
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:5173`. The backend API runs at `http://127.0.0.1:5000`.
+Open `http://localhost:5000`.
+
+For separate frontend hot reload during development, use `npm run dev:split`; that mode uses Vite on port 5173 and Flask on port 5000.
 
 Backend only:
 
@@ -102,9 +116,10 @@ python run_app.py
 
 | Method | Route | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/auth/login` | Sign in as the admin user |
-| `GET` | `/api/auth/me` | Check the current admin session |
-| `POST` | `/api/auth/logout` | End the admin session |
+| `POST` | `/api/auth/login` | Sign in as the configured admin or user |
+| `POST` | `/api/auth/google` | Verify a Google ID token and create a role session |
+| `GET` | `/api/auth/me` | Check the current role session |
+| `POST` | `/api/auth/logout` | End the current session |
 | `POST` | `/api/create-session` | Create a project and save user settings |
 | `POST` | `/api/generate-script` | Generate narration for the selected language and duration |
 | `POST` | `/api/update-script` | Save edited narration |
