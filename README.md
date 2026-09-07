@@ -1,204 +1,140 @@
-# AI Documentary Generator
+# Documentary Studio
 
-A full-stack application for creating AI-generated documentaries with a step-by-step workflow.
+Documentary Studio is a Flask and React application for creating narrated documentary videos from a topic, script, image prompts, uploaded images, and background music.
 
-## Features
+## Current Workflow
 
-- **8-Step Workflow**: Setup → Script → Prompts → Upload → Verify → Audio → Video → Output
-- **AI Script Generation**: Uses Groq (GPT-OSS) for documentary scripts
-- **Image Prompt Generation**: Detailed prompts for AI image generation
-- **Image Upload & Validation**: Drag-and-drop with count verification
-- **Audio Generation**: Gemini TTS for narration + background music selection
-- **Video Rendering**: FFmpeg with Ken Burns effects, transitions, audio mixing
-- **Download All Assets**: Video, script, prompts, audio, images, metadata
+The web app uses six steps:
 
-## Architecture
+1. **Topic**: enter the subject, script language, target duration, genre, and visual style.
+2. **Script**: generate and edit narration in Hindi, English, or Hinglish.
+3. **Narration**: generate and preview the voice-over.
+4. **Prompts**: generate numbered image prompts with the selected visual style.
+5. **Images**: upload numbered JPG, JPEG, PNG, or WEBP images.
+6. **Final Cut**: choose pacing and audio levels, then render the documentary.
 
-```
-documentary-generator/
-├── backend/                 # Node.js/Express API
-│   ├── src/
-│   │   ├── config/         # Configuration
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic
-│   │   ├── utils/          # Helpers
-│   │   └── index.js        # Entry point
-│   └── package.json
-├── frontend/               # React + Vite + Tailwind
-│   ├── src/
-│   │   ├── components/     # Reusable components
-│   │   ├── pages/          # Step pages
-│   │   ├── context/        # React context
-│   │   ├── utils/          # API client
-│   │   └── styles/         # Global styles
-│   └── package.json
-└── projects/               # Generated projects (auto-created)
-```
+The renderer adds Ken Burns-style motion, smooth crossfades, narration audio, and optional background music. The final MP4 is synchronized to the narration duration.
 
-## Prerequisites
+## User Settings
 
+Project setup supports:
+
+- Script language: Hindi, English, or Hinglish
+- Visual style: photorealistic, cartoon, anime, 3D animation, or painted illustration
+- Target narration/video duration: 20 to 600 seconds
+- Seconds per image: 1 to 30
+- Transition duration: 0 to 10 seconds, less than the image duration
+- Narration volume: 0 to 3
+- BGM volume: 0 to 1
+
+The selected visual style is written into every image prompt so cartoon projects receive cartoon prompts instead of photorealistic prompts.
+
+## Requirements
+
+- Python 3.11+
 - Node.js 18+
-- FFmpeg installed and in PATH
-- Groq API key
-- Gemini API key
+- FFmpeg and FFprobe available in `PATH`
+- Groq API key for script and prompt generation
+- Gemini API key for Gemini TTS, unless using the Windows speech fallback
 
 ## Setup
 
-1. **Clone and install dependencies:**
-   ```bash
-   cd documentary-generator
-   npm run install:all
-   ```
+Install frontend dependencies and Python packages:
 
-2. **Configure environment:**
-   ```bash
-   cd backend
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
-
-3. **Start development servers:**
-   ```bash
-   # From root directory
-   npm run dev
-   ```
-   
-   Or run separately:
-   ```bash
-   # Terminal 1 - Backend
-   cd backend && npm run dev
-   
-   # Terminal 2 - Frontend
-   cd frontend && npm run dev
-   ```
-
-4. **Open frontend:** http://localhost:5173
-
-## Workflow
-
-### Step 1: Documentary Setup
-- Enter topic, duration, genre, language, voice
-- System calculates required images: `ceil(duration / 5)`
-
-### Step 2: Generated Script
-- Review AI-generated script with scenes
-- Each scene has narration, visual description, duration
-- Copy/download script
-
-### Step 3: Image Prompts
-- View all AI image generation prompts
-- Copy individual or all prompts
-- Download prompts as text/JSON
-
-### Step 4: Upload Images
-- Upload exactly the required number of images
-- Drag-and-drop or click to browse
-- Real-time count validation
-
-### Step 5: Verify Images
-- Rename images with scene numbers (1_, 2_, etc.)
-- Validate sequence, readability, dimensions
-- Check for missing/duplicate numbers
-
-### Step 6: Generate Audio
-- Generate narration via Gemini TTS
-- Automatic background music selection by genre
-- Audio mixing with ducking (BGM at 15%)
-
-### Step 7: Generate Video
-- FFmpeg rendering with progress tracking
-- Ken Burns effects (zoom/pan)
-- Crossfade transitions
-- Audio synchronization
-
-### Step 8: Final Output
-- Download video (MP4, 1920×1080, H.264)
-- Download all intermediate assets
-- Complete project metadata
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/documentary/generate` | Generate script & prompts |
-| POST | `/api/images/upload` | Upload images |
-| GET | `/api/images/status` | Check upload status |
-| POST | `/api/images/rename` | Rename with scene numbers |
-| POST | `/api/images/verify` | Validate images |
-| POST | `/api/audio/generate` | Generate narration + BGM |
-| POST | `/api/video/generate` | Render final video |
-| GET | `/api/job/:id/status` | Get project status |
-| GET | `/api/download/:projectId/:fileType` | Download files |
-| GET | `/api/projects` | List all projects |
-
-## Project Structure
-
-Each project creates:
-```
-projects/{projectId}/
-├── script/
-│   ├── documentary_script.txt
-│   └── script.json
-├── image_prompts/
-│   ├── image_prompts.txt
-│   └── prompts.json
-├── images/
-│   ├── 1_original-name.jpg
-│   ├── 2_original-name.jpg
-│   └── ...
-├── audio/
-│   ├── narration.wav
-│   ├── bgm.mp3
-│   └── final_audio.mp3
-├── video/
-│   └── documentary_final.mp4
-└── metadata/
-    ├── documentary_metadata.json
-    └── state.json
+```bash
+npm run install:all
+pip install flask werkzeug groq google-genai pyttsx3 pywin32
 ```
 
-## Environment Variables
+Set API keys as environment variables. Do not place keys in source files:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| PORT | Backend port | 3001 |
-| GROQ_API_KEY | Groq API key | Required |
-| GEMINI_API_KEY | Gemini API key | Required |
-| UPLOAD_DIR | Upload directory | ./uploads |
-| PROJECTS_DIR | Projects directory | ./projects |
-| MAX_FILE_SIZE | Max upload size (bytes) | 50MB |
+```bash
+export GROQ_API_KEY="your-groq-key"
+export GEMINI_API_KEY="your-gemini-key"
+```
 
-## Resume Support
+On Windows PowerShell:
 
-Projects maintain state:
-- `INIT` → `SCRIPT_COMPLETE` → `PROMPTS_COMPLETE` → `IMAGES_UPLOADED` → `IMAGES_VERIFIED` → `AUDIO_COMPLETE` → `VIDEO_RENDERING` → `COMPLETE`
+```powershell
+$env:GROQ_API_KEY = "your-groq-key"
+$env:GEMINI_API_KEY = "your-gemini-key"
+```
 
-If generation fails, resume from last successful step.
+## Run
+
+Start both servers from the repository root:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:5173`. The backend API runs at `http://127.0.0.1:5000`.
+
+Backend only:
+
+```bash
+python main.py
+```
+
+Both processes with the Python launcher:
+
+```bash
+python run_app.py
+```
+
+## API Routes
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/create-session` | Create a project and save user settings |
+| `POST` | `/api/generate-script` | Generate narration for the selected language and duration |
+| `POST` | `/api/update-script` | Save edited narration |
+| `POST` | `/api/generate-audio` | Generate narration WAV |
+| `POST` | `/api/generate-prompts` | Generate style-enforced image prompts |
+| `POST` | `/api/upload-images` | Validate and organize numbered images |
+| `POST` | `/api/build-video` | Render animated visuals with narration |
+| `POST` | `/api/finalize-music` | Mix selected BGM under the narration |
+| `GET` | `/api/session/<id>/state` | Read project state |
+| `GET` | `/api/session/<id>/download/<file>` | Download a project artifact |
+
+## Project Artifacts
+
+Each project is stored locally under `projects/<topic>/` and may contain:
+
+```text
+documentary_script.txt
+image_prompts.txt
+image_generation_prompts.txt
+narration.wav
+documentary_video.mp4
+documentary_final_with_music.mp4
+images/
+session_state.json
+generation_log.txt
+```
+
+Generated projects and media are ignored by Git, so large videos, images, and audio are not pushed to GitHub.
+
+## Standalone Pipelines
+
+The command-line stages remain available:
+
+```bash
+python pipeline_1_until_image_prompts.py
+python pipeline_2_after_images.py
+```
+
+Pipeline 1 creates the script, narration, and image prompts. Pipeline 2 asks for pacing and volume settings, checks numbered images, and creates the final video.
+
+## Tests and Build
+
+```bash
+python -m pytest -q
+npm run build
+```
 
 ## Security
 
-- API keys stored in environment variables only
-- Server-side file validation
-- No secrets exposed to frontend
-- File type and size validation
-
-## Tech Stack
-
-**Backend:**
-- Node.js + Express
-- Groq SDK (script generation)
-- Google Generative AI (TTS)
-- Fluent-FFmpeg (video rendering)
-- Sharp (image validation)
-- Multer (file uploads)
-
-**Frontend:**
-- React 18 + Vite
-- Tailwind CSS
-- React Router
-- Axios
-- Lucide React (icons)
-
-## License
-
-MIT
+- Keep API keys in environment variables.
+- Never commit `.env` files or generated project media.
+- Rotate any key that has ever appeared in source code, logs, screenshots, or terminal output.
