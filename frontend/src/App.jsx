@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, Clapperboard, Download, FileImage, FileText, Film, LoaderCircle, Mic2, Play, Save, Sparkles, Upload, WandSparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clapperboard, Download, FileImage, FileText, Film, LoaderCircle, LogOut, Moon, Mic2, Play, Save, Sparkles, Sun, Upload, WandSparkles } from 'lucide-react';
 
 const steps = [
   { id: 1, label: 'Topic' },
@@ -70,6 +70,7 @@ function LoginScreen({ onLogin }) {
 function App() {
   const [authenticated, setAuthenticated] = useState(null);
   const [adminUsername, setAdminUsername] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('documentary-theme') || 'light');
   const [topic, setTopic] = useState('');
   const [genre, setGenre] = useState('history');
   const [visualStyle, setVisualStyle] = useState('photorealistic');
@@ -106,6 +107,11 @@ function App() {
       .catch(() => setAuthenticated(false));
   }, []);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('documentary-theme', theme);
+  }, [theme]);
+
   if (authenticated === null) return <main className="auth-shell"><div className="auth-loading">Checking admin access…</div></main>;
   if (!authenticated) return <LoginScreen onLogin={(username) => { setAdminUsername(username); setAuthenticated(true); }} />;
 
@@ -114,6 +120,8 @@ function App() {
     setAuthenticated(false);
     setAdminUsername('');
   };
+
+  const toggleTheme = () => setTheme((current) => current === 'light' ? 'dark' : 'light');
 
   const run = async (key, fn) => {
     setBusy(key);
@@ -218,7 +226,13 @@ function App() {
     <main className="app-shell">
       <header className="masthead">
         <div className="brand-mark"><Clapperboard size={20} /> DOCUMENTARY STUDIO</div>
-        <div className="header-note">{adminUsername} <button className="logout-button" onClick={logout}>Sign out</button><span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
+        <div className="header-tools">
+          <button className="theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}>
+            {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+            <span>{theme === 'light' ? 'Dark' : 'Light'}</span>
+          </button>
+          <div className="header-note">{adminUsername} <button className="logout-button" onClick={logout}><LogOut size={13} /> Sign out</button><span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
+        </div>
       </header>
 
       <section className="hero-block">
@@ -228,8 +242,9 @@ function App() {
       </section>
 
       <nav className="stepper" aria-label="Documentary workflow">
-        {steps.map((step) => <button key={step.id} className={activeStep >= step.id ? 'active' : ''} onClick={() => activeStep >= step.id && setActiveStep(step.id)}><span>{activeStep > step.id ? <Check size={13} /> : step.id}</span>{step.label}</button>)}
+        {steps.map((step) => <button key={step.id} className={`${activeStep >= step.id ? 'active' : ''} ${activeStep === step.id ? 'current' : ''}`} onClick={() => activeStep >= step.id && setActiveStep(step.id)}><span>{activeStep > step.id ? <Check size={13} /> : step.id}</span>{step.label}</button>)}
       </nav>
+      <div className="progress-track" aria-label={`Step ${activeStep} of ${steps.length}`}><span style={{ width: `${(activeStep / steps.length) * 100}%` }} /></div>
 
       <section className="workspace">
         <aside className="sidebar">

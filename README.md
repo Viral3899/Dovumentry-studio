@@ -60,7 +60,7 @@ $env:GROQ_API_KEY = "your-groq-key"
 $env:GEMINI_API_KEY = "your-gemini-key"
 ```
 
-Configure admin authentication with these environment variables. Authentication is enabled when either `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` is set:
+Configure admin authentication with these environment variables. Authentication is enabled when either `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` is set. On Vercel, if neither is configured, the temporary default login is `admin` / `admin123`; replace it immediately:
 
 ```bash
 ADMIN_USERNAME="admin"

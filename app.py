@@ -39,6 +39,8 @@ BGM_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 BGM_VOLUME = 0.20
 NARRATION_VOLUME = 1.5
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+DEFAULT_ADMIN_USERNAME = "admin"
+DEFAULT_ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$FeBqzBye8K9e0x1l$3584c102b33a948cc4c124fd615576388e9a3fb41dd414e81e2377ea82eb062a2fa57962867ceed0495f3e07aaba92f32e723a7625462008dad627e29e63922f"
 VISUAL_STYLES = {
     "photorealistic": "Photorealistic cinematic documentary, premium film quality, realistic lighting, realistic people, accurate environment, natural colors, cinematic depth of field",
     "cartoon": "Stylized 2D cartoon animation, expressive clean shapes, rich colors, cinematic composition, appealing character design, storybook realism",
@@ -79,10 +81,12 @@ def authentication_configured():
 
 
 def admin_password_is_valid(password):
-    password_hash = os.getenv("ADMIN_PASSWORD_HASH")
+    password_hash = os.getenv("ADMIN_PASSWORD_HASH") or (
+        DEFAULT_ADMIN_PASSWORD_HASH if os.getenv("VERCEL") == "1" else None
+    )
     if password_hash:
         return check_password_hash(password_hash, password)
-    configured_password = os.getenv("ADMIN_PASSWORD", "")
+    configured_password = os.getenv("ADMIN_PASSWORD")
     return bool(configured_password) and password == configured_password
 
 
@@ -102,7 +106,7 @@ def admin_login():
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
-    configured_username = os.getenv("ADMIN_USERNAME", "admin")
+    configured_username = os.getenv("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME)
     if not authentication_configured():
         return jsonify({"success": False, "message": "Admin credentials are not configured."}), 503
     if username != configured_username or not admin_password_is_valid(password):
