@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+Werkzeug>=3.0,<4
+google-genai>=1.0,<2
+groq>=0.9,<1
+edge-tts>=7.0,<8
