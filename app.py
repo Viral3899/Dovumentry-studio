@@ -11,7 +11,8 @@ import wave
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file, session
+from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 
 try:
@@ -27,10 +28,12 @@ except Exception:  # pragma: no cover
     types = None
 
 BASE_DIR = Path(__file__).resolve().parent
-GENERATED_DIR = BASE_DIR / "generated_sessions"
-GENERATED_DIR.mkdir(exist_ok=True)
-PROJECTS_DIR = BASE_DIR / "projects"
-PROJECTS_DIR.mkdir(exist_ok=True)
+RUNTIME_DIR = (Path(os.getenv("TMPDIR") or os.getenv("TEMP") or "/tmp") / "documentary-studio") if os.getenv("VERCEL") == "1" else BASE_DIR
+RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+GENERATED_DIR = RUNTIME_DIR / "generated_sessions"
+GENERATED_DIR.mkdir(parents=True, exist_ok=True)
+PROJECTS_DIR = RUNTIME_DIR / "projects"
+PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 BGM_DIR = BASE_DIR / "BGM"
 BGM_EXTENSIONS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
 BGM_VOLUME = 0.20
@@ -63,6 +66,68 @@ SCRIPT_LANGUAGES = {
 }
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "local-development-secret-change-me")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.getenv("VERCEL", "").lower() == "1",
+)
+
+
+def authentication_configured():
+    return bool(os.getenv("ADMIN_PASSWORD") or os.getenv("ADMIN_PASSWORD_HASH")) or os.getenv("VERCEL") == "1"
+
+
+def admin_password_is_valid(password):
+    password_hash = os.getenv("ADMIN_PASSWORD_HASH")
+    if password_hash:
+        return check_password_hash(password_hash, password)
+    configured_password = os.getenv("ADMIN_PASSWORD", "")
+    return bool(configured_password) and password == configured_password
+
+
+@app.before_request
+def require_admin_authentication():
+    if not request.path.startswith("/api/") or request.path in {"/api/auth/login", "/api/auth/me"}:
+        return None
+    if not authentication_configured():
+        return None
+    if session.get("admin_authenticated"):
+        return None
+    return jsonify({"success": False, "message": "Admin authentication is required.", "authenticated": False}), 401
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def admin_login():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get("username") or "").strip()
+    password = payload.get("password") or ""
+    configured_username = os.getenv("ADMIN_USERNAME", "admin")
+    if not authentication_configured():
+        return jsonify({"success": False, "message": "Admin credentials are not configured."}), 503
+    if username != configured_username or not admin_password_is_valid(password):
+        return jsonify({"success": False, "message": "Invalid admin username or password."}), 401
+    session.clear()
+    session["admin_authenticated"] = True
+    session["admin_username"] = configured_username
+    return jsonify({"success": True, "username": configured_username})
+
+
+@app.route("/api/auth/me")
+def admin_me():
+    authenticated = bool(session.get("admin_authenticated"))
+    return jsonify({
+        "success": True,
+        "authenticated": authenticated or not authentication_configured(),
+        "username": session.get("admin_username") if authenticated else None,
+        "auth_configured": authentication_configured(),
+    })
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def admin_logout():
+    session.clear()
+    return jsonify({"success": True})
 
 
 def slugify(value: str) -> str:

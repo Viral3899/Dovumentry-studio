@@ -60,6 +60,22 @@ $env:GROQ_API_KEY = "your-groq-key"
 $env:GEMINI_API_KEY = "your-gemini-key"
 ```
 
+Configure admin authentication with these environment variables. Authentication is enabled when either `ADMIN_PASSWORD_HASH` or `ADMIN_PASSWORD` is set:
+
+```bash
+ADMIN_USERNAME="admin"
+ADMIN_PASSWORD_HASH="your werkzeug password hash"
+FLASK_SECRET_KEY="a long random secret"
+```
+
+Generate a password hash with:
+
+```bash
+python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('replace-this-password'))"
+```
+
+For Vercel, add `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `FLASK_SECRET_KEY`, `GROQ_API_KEY`, and `GEMINI_API_KEY` under Project Settings > Environment Variables. The API and project downloads require an authenticated admin session.
+
 ## Run
 
 Start both servers from the repository root:
@@ -86,6 +102,9 @@ python run_app.py
 
 | Method | Route | Purpose |
 | --- | --- | --- |
+| `POST` | `/api/auth/login` | Sign in as the admin user |
+| `GET` | `/api/auth/me` | Check the current admin session |
+| `POST` | `/api/auth/logout` | End the admin session |
 | `POST` | `/api/create-session` | Create a project and save user settings |
 | `POST` | `/api/generate-script` | Generate narration for the selected language and duration |
 | `POST` | `/api/update-script` | Save edited narration |

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Clapperboard, Download, FileImage, FileText, Film, LoaderCircle, Mic2, Play, Save, Sparkles, Upload, WandSparkles } from 'lucide-react';
 
 const steps = [
@@ -29,7 +29,47 @@ function hasDevanagari(text) {
   return /[\u0900-\u097F]/.test(text || '');
 }
 
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await requestJson('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      onLogin(result.username);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <main className="auth-shell"><section className="panel auth-panel">
+    <div className="brand-mark"><Clapperboard size={20} /> DOCUMENTARY STUDIO</div>
+    <div className="panel-kicker">ADMIN ACCESS</div>
+    <h1>Enter the<br /><em>story room.</em></h1>
+    <p className="auth-copy">Sign in to create, edit, and render documentaries.</p>
+    {error && <div className="error-banner">{error}</div>}
+    <form onSubmit={submit}>
+      <label>Admin username<input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></label>
+      <label>Admin password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
+      <ActionButton type="submit" busy={busy} disabled={!username || !password}>Unlock studio <ArrowRight size={17} /></ActionButton>
+    </form>
+  </section></main>;
+}
+
 function App() {
+  const [authenticated, setAuthenticated] = useState(null);
+  const [adminUsername, setAdminUsername] = useState('');
   const [topic, setTopic] = useState('');
   const [genre, setGenre] = useState('history');
   const [visualStyle, setVisualStyle] = useState('photorealistic');
@@ -56,6 +96,24 @@ function App() {
   const [transitionSeconds, setTransitionSeconds] = useState(1);
   const [narrationVolume, setNarrationVolume] = useState(1.5);
   const [bgmVolume, setBgmVolume] = useState(0.2);
+
+  useEffect(() => {
+    requestJson('/api/auth/me')
+      .then((result) => {
+        setAuthenticated(result.authenticated);
+        setAdminUsername(result.username || 'admin');
+      })
+      .catch(() => setAuthenticated(false));
+  }, []);
+
+  if (authenticated === null) return <main className="auth-shell"><div className="auth-loading">Checking admin access…</div></main>;
+  if (!authenticated) return <LoginScreen onLogin={(username) => { setAdminUsername(username); setAuthenticated(true); }} />;
+
+  const logout = async () => {
+    await requestJson('/api/auth/logout', { method: 'POST' });
+    setAuthenticated(false);
+    setAdminUsername('');
+  };
 
   const run = async (key, fn) => {
     setBusy(key);
@@ -160,7 +218,7 @@ function App() {
     <main className="app-shell">
       <header className="masthead">
         <div className="brand-mark"><Clapperboard size={20} /> DOCUMENTARY STUDIO</div>
-        <div className="header-note">A quiet room for loud ideas <span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
+        <div className="header-note">{adminUsername} <button className="logout-button" onClick={logout}>Sign out</button><span>•</span> {session ? session.session_id.split('-')[0] : 'new project'}</div>
       </header>
 
       <section className="hero-block">
