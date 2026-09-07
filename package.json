@@ -1,0 +1,17 @@
+{
+  "name": "documentary-generator",
+  "version": "1.0.0",
+  "description": "Full-stack AI Documentary Generator",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && npm --prefix frontend install",
+    "dev:backend": "python main.py",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "npm --prefix frontend run build",
+    "start": "python main.py"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

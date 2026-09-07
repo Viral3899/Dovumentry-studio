@@ -1,4 +1,20 @@
-# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+
+# Generated documentary projects and media.
+projects/
+generated_sessions/
+folder/generated_sessions/
+*.wav
+*.mp4
+*.mov
+
+# Frontend build output and dependencies.
+frontend/node_modules/
+frontend/dist/# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
 *$py.class
