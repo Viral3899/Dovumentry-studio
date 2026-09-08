@@ -9,7 +9,7 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "npm run build && python main.py",
     "dev:split": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "build": "npm --prefix frontend run build",
+    "build": "npm ci --prefix frontend && npm --prefix frontend run build",
     "start": "python main.py"
   },
   "devDependencies": {

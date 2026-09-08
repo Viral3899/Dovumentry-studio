@@ -13,15 +13,8 @@ def npm_command():
 
 
 try:
-    if not (FRONTEND_DIR / "node_modules" / "vite").exists():
-        subprocess.run(
-            [npm_command(), "ci", "--prefix", str(FRONTEND_DIR)],
-            cwd=ROOT_DIR,
-            check=True,
-        )
-
     build = subprocess.run(
-        [npm_command(), "--prefix", str(FRONTEND_DIR), "run", "build"],
+        [npm_command(), "run", "build"],
         cwd=ROOT_DIR,
         check=True,
     )
