@@ -37,7 +37,7 @@ function getInitialTheme() {
 
 function LoginScreen({ onLogin, googleConfigured }) {
   const [role, setRole] = useState('admin');
-  const [username, setUsername] = useState('admin');
+  const [identifier, setIdentifier] = useState('demo');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -51,7 +51,7 @@ function LoginScreen({ onLogin, googleConfigured }) {
       const result = await requestJson('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, role }),
+        body: JSON.stringify({ identifier, password, role }),
       });
       onLogin(result.username, result.role);
     } catch (err) {
@@ -105,9 +105,9 @@ function LoginScreen({ onLogin, googleConfigured }) {
     {error && <div className="error-banner">{error}</div>}
     {authView === 'login' ? <form onSubmit={submit}>
       <div className="role-switch" role="group" aria-label="Account type"><button type="button" className={role === 'admin' ? 'selected' : ''} onClick={() => setRole('admin')}>Admin</button><button type="button" className={role === 'user' ? 'selected' : ''} onClick={() => setRole('user')}>User</button></div>
-      <label>{role === 'admin' ? 'Admin' : 'User'} username<input autoFocus value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" /></label>
+      <label>Username, email, or phone<input autoFocus value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" /></label>
       <label>{role === 'admin' ? 'Admin' : 'User'} password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
-      <ActionButton type="submit" busy={busy} disabled={!username || !password}>Enter studio <ArrowRight size={17} /></ActionButton>
+      <ActionButton type="submit" busy={busy} disabled={!identifier || !password}>Enter studio <ArrowRight size={17} /></ActionButton>
     </form> : <div className="signup-note"><strong>One studio, approved accounts.</strong><span>Signup is available for the Google email configured by the studio administrator.</span></div>}
     {googleConfigured && <><div className="auth-divider"><span>{authView === 'login' ? 'or continue with Google' : 'continue with Google'}</span></div><div id="google-sign-in" className="google-sign-in" /></>}
     <button className="auth-back-button" type="button" onClick={() => setAuthView(authView === 'login' ? 'home' : 'login')}>{authView === 'login' ? 'Back to home' : 'Already have an account? Log in'}</button>

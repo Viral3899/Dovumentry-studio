@@ -80,6 +80,10 @@ GOOGLE_USER_EMAIL="user@example.com"
 
 The server verifies the Google ID token and rejects unlisted or unverified email addresses. `GOOGLE_CLIENT_ID` is public browser configuration; keep `FLASK_SECRET_KEY` and password hashes private.
 
+For local development, authentication uses SQLite at `auth.db` and seeds the demo account `demo` / `demo123`. This account is local-only and is not seeded on Vercel. Configured environment accounts are copied into the database on first startup.
+
+To use MySQL, set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`. Create the database before starting the app. Users are stored in the `users` table with hashed passwords and may log in with their username, email, or phone number. Unexpected errors are written to the `error_logs` table, `errors.log`, and the running terminal.
+
 Generate a password hash with:
 
 ```bash

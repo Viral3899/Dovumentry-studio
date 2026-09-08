@@ -1,6 +1,17 @@
 from app import app, build_video_command, enforce_visual_style, image_index_from_filename
 
 
+def authenticated_client():
+    client = app.test_client()
+    response = client.post('/api/auth/login', json={
+        'username': 'demo',
+        'password': 'demo123',
+        'role': 'admin',
+    })
+    assert response.status_code == 200
+    return client
+
+
 def test_homepage_renders():
     client = app.test_client()
     response = client.get('/')
@@ -9,9 +20,17 @@ def test_homepage_renders():
 
 
 def test_topic_creation_requires_topic():
-    client = app.test_client()
+    client = authenticated_client()
     response = client.post('/api/create-session', json={})
     assert response.status_code == 400
+
+
+def test_demo_login_uses_database_account():
+    client = authenticated_client()
+    response = client.get('/api/auth/me')
+    assert response.json['authenticated'] is True
+    assert response.json['username'] == 'demo'
+    assert response.json['role'] == 'admin'
 
 
 def test_image_index_accepts_timestamped_generated_filename():
@@ -32,7 +51,7 @@ def test_video_command_binds_narration_after_all_image_inputs():
 
 
 def test_create_session_persists_render_settings():
-    client = app.test_client()
+    client = authenticated_client()
     response = client.post('/api/create-session', json={
         'topic': 'Render settings test',
         'image_seconds': 8,

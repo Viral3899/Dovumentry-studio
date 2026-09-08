@@ -1,19 +1,27 @@
 import json
+import logging
 import math
 import os
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
 import time
+import traceback
 import uuid
 import wave
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file, send_from_directory, session
-from werkzeug.security import check_password_hash
+from flask import Flask, has_request_context, jsonify, render_template, request, send_file, send_from_directory, session
+from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+
+try:
+    import pymysql
+except Exception:  # pragma: no cover
+    pymysql = None
 
 try:
     from groq import Groq
@@ -50,6 +58,12 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$FeBqzBye8K9e0x1l$3584c102b33a948cc4c124fd615576388e9a3fb41dd414e81e2377ea82eb062a2fa57962867ceed0495f3e07aaba92f32e723a7625462008dad627e29e63922f"
 DEFAULT_USER_USERNAME = "user"
+AUTH_DB_PATH = Path(os.getenv("AUTH_DB_PATH", BASE_DIR / "auth.db"))
+ERROR_LOG_PATH = RUNTIME_DIR / "errors.log"
+DEMO_USERNAME = "demo"
+DEMO_PASSWORD = "demo123"
+DEMO_EMAIL = "demo@example.com"
+DEMO_PHONE = "+10000000000"
 VISUAL_STYLES = {
     "photorealistic": "Photorealistic cinematic documentary, premium film quality, realistic lighting, realistic people, accurate environment, natural colors, cinematic depth of field",
     "cartoon": "Stylized 2D cartoon animation, expressive clean shapes, rich colors, cinematic composition, appealing character design, storybook realism",
@@ -84,35 +98,196 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.getenv("VERCEL", "").lower() == "1",
 )
 
+logger = logging.getLogger("documentary_studio")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    file_handler = logging.FileHandler(ERROR_LOG_PATH, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    terminal_handler = logging.StreamHandler()
+    terminal_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.addHandler(terminal_handler)
+
+
+def mysql_configured():
+    return bool(os.getenv("MYSQL_HOST"))
+
+
+def mysql_connection():
+    if pymysql is None:
+        raise RuntimeError("PyMySQL is required when MYSQL_HOST is configured.")
+    return pymysql.connect(
+        host=os.getenv("MYSQL_HOST"),
+        port=int(os.getenv("MYSQL_PORT", "3306")),
+        user=os.getenv("MYSQL_USER", "root"),
+        password=os.getenv("MYSQL_PASSWORD", ""),
+        database=os.getenv("MYSQL_DATABASE", "documentary_studio"),
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True,
+    )
+
+
+def configured_accounts():
+    accounts = []
+    if os.getenv("VERCEL") != "1":
+        accounts.append((DEMO_USERNAME, DEMO_EMAIL, DEMO_PHONE, "admin", generate_password_hash(DEMO_PASSWORD)))
+    configured = [
+        (os.getenv("ADMIN_USERNAME"), "admin", os.getenv("ADMIN_PASSWORD_HASH") or os.getenv("ADMIN_PASSWORD")),
+        (os.getenv("USER_USERNAME"), "user", os.getenv("USER_PASSWORD_HASH") or os.getenv("USER_PASSWORD")),
+    ]
+    for username, role, password_value in configured:
+        if username and password_value:
+            password_hash = password_value if "$" in password_value else generate_password_hash(password_value)
+            accounts.append((username.strip(), None, None, role, password_hash))
+    if os.getenv("VERCEL") == "1" and not accounts:
+        accounts.append((DEFAULT_ADMIN_USERNAME, None, None, "admin", DEFAULT_ADMIN_PASSWORD_HASH))
+    return accounts
+
+
+def initialize_auth_db():
+    if mysql_configured():
+        with mysql_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                        username VARCHAR(120) NULL,
+                        email VARCHAR(255) NULL,
+                        phone VARCHAR(40) NULL,
+                        role VARCHAR(20) NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        UNIQUE KEY users_username_role (username, role),
+                        UNIQUE KEY users_email_role (email, role),
+                        UNIQUE KEY users_phone_role (phone, role)
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS error_logs (
+                        id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                        error_type VARCHAR(120) NOT NULL,
+                        message TEXT NOT NULL,
+                        path VARCHAR(500) NOT NULL,
+                        method VARCHAR(20) NOT NULL,
+                        traceback_text LONGTEXT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+                cursor.executemany(
+                    "INSERT IGNORE INTO users (username, email, phone, role, password_hash) VALUES (%s, %s, %s, %s, %s)",
+                    configured_accounts(),
+                )
+                if os.getenv("VERCEL") != "1":
+                    cursor.execute(
+                        "UPDATE users SET email = %s, phone = %s WHERE username = %s AND role = 'admin'",
+                        (DEMO_EMAIL, DEMO_PHONE, DEMO_USERNAME),
+                    )
+        return
+    AUTH_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(AUTH_DB_PATH) as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                email TEXT,
+                phone TEXT,
+                role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+                password_hash TEXT NOT NULL,
+                UNIQUE (username, role)
+            )
+            """
+        )
+        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
+        for column in ("email", "phone"):
+            if column not in existing_columns:
+                connection.execute(f"ALTER TABLE users ADD COLUMN {column} TEXT")
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                error_type TEXT NOT NULL,
+                message TEXT NOT NULL,
+                path TEXT NOT NULL,
+                method TEXT NOT NULL,
+                traceback_text TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        connection.executemany(
+            "INSERT OR IGNORE INTO users (username, email, phone, role, password_hash) VALUES (?, ?, ?, ?, ?)",
+            configured_accounts(),
+        )
+        if os.getenv("VERCEL") != "1":
+            connection.execute(
+                "UPDATE users SET email = ?, phone = ? WHERE username = ? AND role = 'admin'",
+                (DEMO_EMAIL, DEMO_PHONE, DEMO_USERNAME),
+            )
+
+
+def find_user(username, role):
+    if mysql_configured():
+        with mysql_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT username, email, phone, role, password_hash FROM users WHERE role = %s AND (username = %s OR email = %s OR phone = %s)",
+                    (role, username, username.lower(), username),
+                )
+                return cursor.fetchone()
+    with sqlite3.connect(AUTH_DB_PATH) as connection:
+        return connection.execute(
+            "SELECT username, email, phone, role, password_hash FROM users WHERE role = ? AND (username = ? OR email = ? OR phone = ?)",
+            (role, username, username.lower(), username),
+        ).fetchone()
+
+
+def record_error(error):
+    error_type = type(error).__name__
+    message = str(error) or error_type
+    path = request.path if has_request_context() else "startup"
+    method = request.method if has_request_context() else "SYSTEM"
+    trace = traceback.format_exc()
+    logger.error("%s %s %s: %s", method, path, error_type, message)
+    try:
+        if mysql_configured():
+            with mysql_connection() as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO error_logs (error_type, message, path, method, traceback_text) VALUES (%s, %s, %s, %s, %s)",
+                        (error_type, message, path, method, trace),
+                    )
+        else:
+            with sqlite3.connect(AUTH_DB_PATH) as connection:
+                connection.execute(
+                    "INSERT INTO error_logs (error_type, message, path, method, traceback_text) VALUES (?, ?, ?, ?, ?)",
+                    (error_type, message, path, method, trace),
+                )
+    except Exception as logging_error:
+        logger.error("Could not persist error log: %s", logging_error)
+
+
+initialize_auth_db()
+
 
 def authentication_configured():
-    return bool(
-        os.getenv("ADMIN_PASSWORD") or os.getenv("ADMIN_PASSWORD_HASH")
-        or os.getenv("USER_PASSWORD") or os.getenv("USER_PASSWORD_HASH")
-        or google_auth_configured()
-    ) or os.getenv("VERCEL") == "1"
+    if mysql_configured():
+        with mysql_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM users LIMIT 1")
+                has_users = cursor.fetchone() is not None
+    else:
+        with sqlite3.connect(AUTH_DB_PATH) as connection:
+            has_users = connection.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
+    return has_users or google_auth_configured() or os.getenv("VERCEL") == "1"
 
 
 def google_auth_configured():
     return bool(os.getenv("GOOGLE_CLIENT_ID") and (os.getenv("GOOGLE_ADMIN_EMAIL") or os.getenv("GOOGLE_USER_EMAIL")))
-
-
-def admin_password_is_valid(password):
-    password_hash = os.getenv("ADMIN_PASSWORD_HASH") or (
-        DEFAULT_ADMIN_PASSWORD_HASH if os.getenv("VERCEL") == "1" else None
-    )
-    if password_hash:
-        return check_password_hash(password_hash, password)
-    configured_password = os.getenv("ADMIN_PASSWORD")
-    return bool(configured_password) and password == configured_password
-
-
-def user_password_is_valid(password):
-    password_hash = os.getenv("USER_PASSWORD_HASH")
-    if password_hash:
-        return check_password_hash(password_hash, password)
-    configured_password = os.getenv("USER_PASSWORD")
-    return bool(configured_password) and password == configured_password
 
 
 def set_authenticated_user(username, role, email=None):
@@ -135,26 +310,38 @@ def require_admin_authentication():
     return jsonify({"success": False, "message": "Admin authentication is required.", "authenticated": False}), 401
 
 
+@app.errorhandler(Exception)
+def handle_unexpected_error(error):
+    record_error(error)
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "message": "An internal error occurred. Check the server log."}), 500
+    return "An internal error occurred. Check the server log.", 500
+
+
 @app.route("/api/auth/login", methods=["POST"])
 def admin_login():
     payload = request.get_json(silent=True) or {}
-    username = (payload.get("username") or "").strip()
+    username = (payload.get("identifier") or payload.get("username") or "").strip()
     password = payload.get("password") or ""
     requested_role = (payload.get("role") or "admin").strip().lower()
     if requested_role not in {"admin", "user"}:
         return jsonify({"success": False, "message": "Choose a valid account type."}), 400
     if not authentication_configured():
         return jsonify({"success": False, "message": "Authentication is not configured."}), 503
-    if requested_role == "admin":
-        configured_username = os.getenv("ADMIN_USERNAME", DEFAULT_ADMIN_USERNAME)
-        valid = username == configured_username and admin_password_is_valid(password)
-    else:
-        configured_username = os.getenv("USER_USERNAME", DEFAULT_USER_USERNAME)
-        valid = username == configured_username and user_password_is_valid(password)
+    account = find_user(username, requested_role)
+    if not account:
+        return jsonify({"success": False, "message": f"Invalid {requested_role} credentials."}), 401
+    configured_username = account["username"] if isinstance(account, dict) else account[0]
+    role = account["role"] if isinstance(account, dict) else account[3]
+    password_hash = account["password_hash"] if isinstance(account, dict) else account[4]
+    try:
+        valid = check_password_hash(password_hash, password)
+    except ValueError:
+        valid = False
     if not valid:
         return jsonify({"success": False, "message": f"Invalid {requested_role} credentials."}), 401
-    set_authenticated_user(configured_username, requested_role)
-    return jsonify({"success": True, "username": configured_username, "role": requested_role})
+    set_authenticated_user(configured_username, role)
+    return jsonify({"success": True, "username": configured_username, "role": role})
 
 
 @app.route("/api/auth/google", methods=["POST"])

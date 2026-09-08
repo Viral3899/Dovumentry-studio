@@ -10,3 +10,4 @@ imageio==2.37.2
 imageio-ffmpeg==0.6.0
 numpy==1.26.4
 requests==2.34.2
+PyMySQL==1.1.1
