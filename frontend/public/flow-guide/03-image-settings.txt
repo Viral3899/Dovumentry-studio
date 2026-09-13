@@ -1,0 +1,2 @@
+STEP 3 — IMAGE SETTINGS
+Use 16:9 landscape. Generate automatically. Do not exceed 24 images in a single batch.

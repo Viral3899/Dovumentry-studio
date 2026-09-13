@@ -1,0 +1,5 @@
+STEP 5 — GENERATE THE NEXT BATCH
+After the previous batch is completely finished, paste the next numbered range.
+Continue numbering from the previous batch (for example, 1–30 → 31–60 → 61–90), according to the required image count.
+Continue until the automatically calculated required image count is complete.
+Never restart numbering. Do not force a fixed batch size.

@@ -81,7 +81,7 @@ IMAGE_DIR = PROJECT_DIR / "images"
 SCRIPT_FILE = str(PROJECT_DIR / "documentary_script.txt")
 PROMPTS_FILE = str(PROJECT_DIR / "image_prompts.txt")
 AUDIO_FILE = str(PROJECT_DIR / "narration.wav")
-OUTPUT_VIDEO = str(PROJECT_DIR / "documentary.mp4")
+OUTPUT_VIDEO = str(PROJECT_DIR / f"{topic_folder}.mp4")
 
 
 def get_prompt_count(filename):
@@ -232,6 +232,8 @@ for number in range(1, image_count + 1):
 
 all_images = ordered_images
 print(f"✓ Images prepared in numeric filename order: {len(all_images)}")
+print(f"✓ Images prepared in numeric filename order: {len(all_images)}")
+print(f"✓ Images prepared in numeric filename order: {len(all_images)}")
 
 renames = []
 for i, src in enumerate(all_images, 1):
@@ -308,15 +310,19 @@ def create_video():
 
     filters = []
 
+    # d = total frames zoompan must produce for the full image slot.
+    # d=1 only outputs 1 frame, leaving xfade with nothing to blend — broken transitions.
+    zoompan_frames = math.ceil(image_duration * FPS)
+
     for i in range(image_count):
         filters.append(
             f"[{i}:v]"
             f"scale={WIDTH}:{HEIGHT}:"
             f"force_original_aspect_ratio=increase,"
             f"crop={WIDTH}:{HEIGHT},"
-            "zoompan=z='min(zoom+0.0007,1.08)':"
-            "x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
-            f"d=1:s={WIDTH}x{HEIGHT}:fps={FPS},"
+            f"zoompan=z='min(zoom+0.0007,1.08)':"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':"
+            f"d={zoompan_frames}:s={WIDTH}x{HEIGHT}:fps={FPS},"
             f"setsar=1,"
             f"format=yuv420p"
             f"[v{i}]"
@@ -331,7 +337,7 @@ def create_video():
         filters.append(
             f"[{current}][v{i}]"
             f"xfade="
-            f"transition=smoothleft:"
+            f"transition=fade:"
             f"duration={TRANSITION_SECONDS}:"
             f"offset={offset}"
             f"[{output}]"

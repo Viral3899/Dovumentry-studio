@@ -1,0 +1,10 @@
+STEP 2 — AGENT INSTRUCTIONS
+Open Agent instructions and paste exactly:
+
+Generate a text-to-image prompt for each topic using: [Subject/Scene] + [Time period/setting] + [Visual style] + [Lighting] + [Camera angle] + [Mood/atmosphere].
+
+Keep the visual style, characters, locations, period details, wardrobe, architecture, materials, color language, and cinematic documentary continuity consistent across the project. Use 16:9 landscape. No text, captions, logos, subtitles, or watermarks.
+
+Generate only the requested numbered batch. Generate all images required for that batch; do not force a fixed batch size. After the batch is fully generated, continue with the next numbered batch only if more images remain.
+
+Keep the instruction enabled.

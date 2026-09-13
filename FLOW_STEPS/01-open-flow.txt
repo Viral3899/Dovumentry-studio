@@ -1,0 +1,5 @@
+STEP 1 — OPEN GOOGLE FLOW
+Open Google Flow: https://labs.google/fx/tools/flow
+Click New project and enter the new project.
+
+Do not start image generation yet. Continue to Agent Instructions.

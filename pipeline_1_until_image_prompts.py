@@ -21,7 +21,7 @@ from google.genai import types
 
 GROQ_MODEL = "openai/gpt-oss-120b"
 
-TTS_MODEL = "gemini-2.5-flash-preview-tts"
+TTS_MODEL = os.getenv("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
 
 # Nano Banana 2IMAGE_MODEL = ""
 # Nano Banana Pro
@@ -102,9 +102,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
+topic = input(
+    "\nEnter documentary topic (e.g., 'The History of Indian Railways'):\n> "
+).strip()
 if not topic:
-
     raise RuntimeError(
         "Topic cannot be empty."
     )
@@ -187,8 +188,20 @@ CRITICAL OUTPUT RULES:
 - Use smooth transitions between paragraphs so the narration feels like one continuous story.
 - Do not begin with a heading; begin directly with a strong documentary hook.
 - Preserve chronology and logical flow.
-- Avoid repetitive phrases.
 - Use punctuation suitable for natural speech.
+
+NO REPETITION — STRICT:
+- Do NOT repeat the same word, phrase, idea, or fact anywhere in the narration.
+- Do NOT use the same noun, verb, or adjective in consecutive or nearby sentences.
+- Do NOT restate the topic name more than twice in the entire script.
+- Before returning, mentally re-read the narration and remove any duplicated thought or phrase.
+- Vary sentence structure throughout — short, medium, and long sentences mixed together.
+
+NO GENERIC CONTENT — STRICT:
+- Every sentence must be specific to "{topic}" — not something that could apply to any subject.
+- Do NOT write filler lines like "यह कहानी हमें बताती है...", "भारत की धरती पर...", "समय के साथ...", or any sentence that sounds like a template.
+- Use concrete details: specific places, specific people, specific events, specific time periods relevant to this topic.
+- If you do not know a specific fact, describe a vivid concrete scene instead of writing vague generalities.
 
 FACTUAL SAFETY:
 - Do not invent names, dates, numbers, locations, quotations, evidence, arrests, operations, or events.
@@ -201,9 +214,9 @@ STYLE:
 - Investigative but factual
 - Suspenseful without sensational fabrication
 - Natural spoken Hindi
-- Strong opening hook
+- Strong specific opening hook about this exact topic
 - Clear chronological storytelling
-- Context, events, claims/evidence, uncertainty, consequences, and a memorable ending
+- Context, events, claims/evidence, uncertainty, consequences, and a memorable specific ending
 
 Return ONLY the final continuous Hindi narration.
 """

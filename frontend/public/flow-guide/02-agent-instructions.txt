@@ -1,0 +1,6 @@
+STEP 2 — AGENT INSTRUCTIONS
+Open Agent instructions and paste the exact instruction:
+
+Generate a text-to-image prompt for each topic using: [Subject/Scene] + [Time period/setting] + [Visual style] + [Lighting] + [Camera angle] + [Mood/atmosphere].
+
+Keep the instruction enabled.

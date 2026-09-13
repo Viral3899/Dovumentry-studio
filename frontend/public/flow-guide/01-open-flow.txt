@@ -1,0 +1,4 @@
+STEP 1 — OPEN GOOGLE FLOW
+Open Google Flow → New project → enter the project. Then open the Agent/project controls.
+
+Flow: https://labs.google/fx/tools/flow

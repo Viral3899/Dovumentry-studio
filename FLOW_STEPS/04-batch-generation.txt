@@ -1,0 +1,5 @@
+STEP 4 — GENERATE THE CURRENT BATCH
+Paste the current numbered image-prompt batch into Flow.
+Wait until the entire batch is finished before continuing.
+Do not restart numbering.
+Generate the full current numbered batch required by the project.

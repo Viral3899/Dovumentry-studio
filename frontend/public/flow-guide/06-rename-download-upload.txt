@@ -1,0 +1,7 @@
+STEP 6 — RENAME, DOWNLOAD, UPLOAD
+After ALL images are generated:
+1. Rename sequentially: 1.jpeg, 2.jpeg, 3.jpeg…
+2. Download/export the project image set.
+3. Return to Documentary Studio → Image Bay → upload all images.
+
+The project uses 1 image per 5 seconds of audio, so the required total is CEILING(audio_seconds / 5).

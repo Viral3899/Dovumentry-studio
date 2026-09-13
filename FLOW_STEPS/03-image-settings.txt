@@ -1,0 +1,9 @@
+STEP 3 — MODEL / IMAGE / OUTPUT SETTINGS
+1. Open the model/settings control.
+2. Select the image model you want to use in Flow.
+3. Select 16:9 landscape.
+4. Generate the number of images required by the current batch; do not force a fixed batch size.
+5. Set Outputs to 1.
+6. In Confirm before generating, select Never.
+7. Keep Outputs set to 1 for every generation.
+8. Save/close settings and return to the prompt box.

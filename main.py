@@ -7,7 +7,7 @@ the frontend and exposes both pipeline stages through its API routes.
 
 import os
 
-from app import app
+from .app import app
 
 
 if __name__ == "__main__":

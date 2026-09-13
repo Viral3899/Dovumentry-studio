@@ -5,6 +5,7 @@ __pycache__/
 .env.*
 auth.db
 errors.log
+api_keys.json
 
 # Generated documentary projects and media.
 projects/

@@ -1,0 +1,19 @@
+STEP 06 — RENAME FIRST → REFRESH → DOWNLOAD PROJECT
+
+After ALL images have finished generating in Google Flow:
+
+1. Download/locate the generated image files in the Flow image folder.
+2. Run the supplied Windows rename command FIRST. It renames the image files sequentially to 1.jpeg, 2.jpeg, 3.jpeg, 4.jpeg…
+3. Verify the numbering.
+4. Return to Google Flow and REFRESH the page/project.
+5. Open the THREE-DOTS menu.
+6. Choose DOWNLOAD PROJECT.
+7. Wait for the project download to finish.
+8. Only after the project is downloaded, continue to Image Bay and upload the downloaded project/images.
+
+RENAME COMMAND (Windows CMD):
+
+@echo off
+setlocal
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$files=Get-ChildItem -File | Where-Object { $_.Extension -match '^\.(png|jpe?g|webp)$' } | Sort-Object Name; $i=1; foreach($f in $files){ $tmp=('__flow_tmp_{0:D6}{1}' -f $i,$f.Extension.ToLower()); Rename-Item -LiteralPath $f.FullName -NewName $tmp; $i++ }; $files=Get-ChildItem -File | Where-Object { $_.Name -like '__flow_tmp_*' } | Sort-Object Name; $i=1; foreach($f in $files){ Rename-Item -LiteralPath $f.FullName -NewName ((('{0}' -f $i)+$f.Extension.ToLower())); $i++ }; Write-Host ('Renamed '+($i-1)+' image files.')"
+pause

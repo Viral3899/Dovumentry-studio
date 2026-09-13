@@ -8,10 +8,11 @@ The web app uses six steps:
 
 1. **Topic**: enter the subject, script language, target duration, genre, and visual style.
 2. **Script**: generate and edit narration in Hindi, English, or Hinglish.
-3. **Narration**: generate and preview the voice-over.
+3. **Narration**: generate one continuous narration audio clip and preview it.
 4. **Prompts**: generate numbered image prompts with the selected visual style.
-5. **Images**: upload numbered JPG, JPEG, PNG, or WEBP images.
-6. **Final Cut**: choose pacing and audio levels, then render the documentary.
+5. **Flow Images / Image Bay**: follow the Google Flow guide, generate max 24 per batch, rename, refresh, download the project from the three-dots menu, then upload numbered images.
+6. **Image Bay**: review the numbered sequence; no manual image count is required.
+7. **Final Cut**: choose pacing and audio levels, then render the documentary.
 
 The renderer adds Ken Burns-style motion, smooth crossfades, narration audio, and optional background music. The final MP4 is synchronized to the narration duration.
 
@@ -22,7 +23,7 @@ Project setup supports:
 - Script language: Hindi, English, or Hinglish
 - Visual style: photorealistic, cartoon, anime, 3D animation, or painted illustration
 - Target narration/video duration: 20 to 600 seconds
-- Seconds per image: 1 to 30
+- Image timing: fixed at 5 seconds per image (not user-editable)
 - Transition duration: 0 to 10 seconds, less than the image duration
 - Narration volume: 0 to 3
 - BGM volume: 0 to 1
@@ -35,7 +36,7 @@ The selected visual style is written into every image prompt so cartoon projects
 - Node.js 18+
 - FFmpeg and FFprobe available in `PATH`
 - Groq API key for script and prompt generation
-- Gemini API key for Gemini TTS, unless using the Windows speech fallback
+- Gemini API key for Gemini TTS, unless using the Edge TTS fallback
 
 ## Setup
 
@@ -43,7 +44,7 @@ Install frontend dependencies and Python packages:
 
 ```bash
 npm run install:all
-pip install flask werkzeug groq google-genai pyttsx3 pywin32
+pip install -r requirements.txt
 ```
 
 Set API keys as environment variables. Do not place keys in source files:
@@ -176,3 +177,11 @@ npm run build
 - Keep API keys in environment variables.
 - Never commit `.env` files or generated project media.
 - Rotate any key that has ever appeared in source code, logs, screenshots, or terminal output.
+
+
+## Social Director
+The final-cut page automatically generates YouTube title/description, Instagram caption, YouTube SEO tags, and thumbnail text/image prompt. Copy `.env.example` to `.env` and set `GROQ_API_KEY`. The default social model is `openai/gpt-oss-20b`; override with `GROQ_MODEL` if needed.
+
+
+## Google Flow final order
+After all images are generated: run FLOW_STEPS/06-rename-images.cmd FIRST, verify 1.jpeg, 2.jpeg, 3.jpeg..., refresh Google Flow, then use the three-dots menu to Download Project. Upload to Image Bay only after the project download completes.
